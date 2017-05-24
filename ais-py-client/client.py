@@ -46,14 +46,29 @@ class AISClient(object):
     def service_areas(self, query, params = None):
         return self.get("service_areas", query, params)
 
-    def batch_search(self, rows, query_column_name, add_or_update_column_relations, remove_column_names, params = None):
+    def batch_search(self, rows, query_column_names, add_or_update_column_relations, remove_column_names, params = None):
+        errors = []
         for row in rows:
-            result = self.search(row[query_column_name], params)
-            feature = result["features"][0]
+            for query_column_name in query_column_names:
+                result = self.search(row[query_column_name], params)
+                try:
+                    feature = result["features"][0]
+                    break
+                except:
+                    pass
+            if not feature:
+                errors.append(row[query_column_name])
+                continue
             properties = feature["properties"]
+            geometry = feature["geometry"]
             for ais_name, column_name in add_or_update_column_relations.iteritems():
-                row[column_name] = properties[ais_name]
+                if ais_name == "long":
+                    row[column_name] = geometry["coordinates"][0]
+                elif ais_name == "lat":
+                    row[column_name] = geometry["coordinates"][1]
+                else:
+                    row[column_name] = properties[ais_name]
             for column_name in remove_column_names:
                 del row[column_name]
 
-        return rows
+        return rows, errors
